@@ -1,0 +1,190 @@
+:root {
+    --primary-color: #0d6efd;
+    --secondary-color: #6c757d;
+    --accent-color: #198754;
+    --light-blue: #cfe2ff;
+    --dark-blue: #0a58ca;
+    --very-light-blue: #f0f7ff;
+}
+
+body {
+    font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+    background-color: #f8f9fa;
+    overflow-x: hidden;
+}
+
+/* Login Page Styles */
+.login-page {
+    background: linear-gradient(135deg, var(--primary-color), var(--dark-blue));
+}
+
+.login-page .card {
+    border-radius: 15px;
+    border: none;
+}
+
+.btn-primary {
+    background-color: var(--primary-color);
+    border-color: var(--primary-color);
+}
+
+.btn-primary:hover {
+    background-color: var(--dark-blue);
+    border-color: var(--dark-blue);
+}
+
+/* Sidebar Styles */
+.sidebar {
+    background-color: #343a40;
+    min-height: 100vh;
+    position: fixed;
+    padding-top: 20px;
+    top: 0;
+    bottom: 0;
+    left: 0;
+    z-index: 100;
+    padding: 0;
+    box-shadow: inset -1px 0 0 rgba(0, 0, 0, .1);
+}
+
+.sidebar .nav-link {
+    color: #f8f9fa;
+    border-radius: 0;
+    padding: 10px 20px;
+    margin-bottom: 5px;
+    font-weight: 500;
+    padding: 0.75rem 1rem;
+    transition: all 0.2s ease-in-out;
+}
+
+.sidebar .nav-link:hover,
+.sidebar .nav-link.active {
+    background-color: var(--primary-color);
+}
+
+.sidebar .nav-link:hover {
+    background-color: rgba(255, 255, 255, 0.1);
+}
+
+.sidebar .nav-link.active {
+    font-weight: 600;
+}
+
+.sidebar .nav-link i {
+    margin-right: 10px;
+}
+
+/* Sidebar logo specific styling */
+.sidebar .store-logo {
+    max-width: 80px;
+    filter: drop-shadow(0 2px 5px rgba(0,0,0,0.2));
+}
+
+/* Main Content Area */
+.main-content {
+    margin-left: 250px;
+    padding: 20px;
+    transition: margin 0.3s;
+}
+
+.dashboard-card {
+    border-radius: 10px;
+    box-shadow: 0 0.125rem 0.25rem rgba(0, 0, 0, 0.075);
+    transition: transform 0.3s;
+}
+
+.dashboard-card:hover {
+    transform: translateY(-5px);
+}
+
+/* POS Styles */
+.product-card {
+    cursor: pointer;
+    transition: all 0.3s;
+    border: 1px solid #dee2e6;
+    border-radius: 10px;
+    overflow: hidden;
+}
+
+.product-card:hover {
+    transform: scale(1.03);
+    box-shadow: 0 10px 20px rgba(0, 0, 0, 0.1);
+}
+
+.product-image {
+    height: 150px;
+    object-fit: cover;
+}
+
+.cart-item {
+    border-bottom: 1px solid #dee2e6;
+    padding: 10px 0;
+}
+
+.payment-methods .btn {
+    margin: 5px;
+}
+
+/* Inventory Styles */
+.table-container {
+    background-color: white;
+    border-radius: 10px;
+    padding: 20px;
+    box-shadow: 0 0.125rem 0.25rem rgba(0, 0, 0, 0.075);
+}
+
+/* Reports Styles */
+.chart-container {
+    height: 300px;
+    margin-bottom: 30px;
+}
+
+/* Logo styling */
+.store-logo {
+    max-width: 120px;
+    height: auto;
+    transition: transform 0.3s ease;
+}
+
+.store-logo:hover {
+    transform: scale(1.05);
+}
+
+/* Mobile Responsive */
+@media (max-width: 767.98px) {
+    .sidebar {
+        width: 100%;
+        position: relative;
+        min-height: auto;
+        position: fixed;
+        top: 0;
+        bottom: 0;
+        left: 0;
+        z-index: 1000;
+        padding: 0;
+        width: 100%;
+        overflow-x: hidden;
+        visibility: hidden;
+    }
+    
+    .sidebar.show {
+        visibility: visible;
+    }
+    
+    .main-content {
+        margin-left: 0;
+    }
+}
+
+/* Fix for print layout consistency */
+@media print {
+    .sidebar, .btn-toolbar, .no-print {
+        display: none !important;
+    }
+    
+    .main-content {
+        width: 100% !important;
+        margin: 0 !important;
+        padding: 0 !important;
+    }
+}

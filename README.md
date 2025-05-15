@@ -1,0 +1,78 @@
+# The Bohemian Burrows - Point of Sale System
+
+A comprehensive Point of Sale (POS) system for clothing retail businesses, featuring inventory management, admin and cashier panels, and multiple payment method support.
+
+## Features
+
+- **User Authentication**: Separate login for admin and cashier users
+- **Dashboard**: Overview of key metrics and quick navigation
+- **Inventory Management**: Track stock levels and manage products
+- **Point of Sale (POS)**: User-friendly interface for processing sales
+- **Multiple Payment Methods**: Support for cash, card, GCash, and PayMaya
+- **Reporting**: Generate sales reports and analytics
+- **Receipt Printing**: Print physical or digital receipts
+
+## Installation
+
+1. Clone the repository to your local XAMPP `htdocs` directory:
+
+```
+git clone https://github.com/yourusername/bohemian-burrows.git
+```
+
+2. Import the database:
+   - Make sure MySQL is running on port 3307
+   - The system will automatically create a database named `bohemian`
+   - You can verify by accessing the database setup page:
+     http://localhost/bohemianburrows/includes/db_setup.php
+
+3. Access the application:
+   http://localhost/bohemianburrows/
+
+## Accessing the System
+
+- Main application: http://localhost/bohemianburrows
+- Database setup: http://localhost/bohemianburrows/includes/db_setup.php
+- Test connection: http://localhost/bohemianburrows/test_connection.php (if you created this file)
+
+## Default Login Credentials
+
+- **Admin**:
+  - Username: admin
+  - Password: admin123
+
+## System Requirements
+
+- PHP 7.4 or higher
+- MySQL 5.7 or higher
+- Web server (Apache/Nginx)
+- Modern web browser
+
+## Directory Structure
+
+```
+bohemianburrows/
+├── admin/           # Admin panel files
+├── ajax/            # AJAX endpoints
+├── assets/          # CSS, JavaScript, and images
+├── cashier/         # Cashier panel files
+├── includes/        # Helper files and database connection
+├── uploads/         # Product images and other uploads
+├── index.php        # Entry point
+└── README.md        # This file
+```
+
+## Usage
+
+1. Log in as admin to set up products and cashier accounts
+2. Add products with prices, categories, and images
+3. Create cashier accounts for store staff
+4. Access the POS system to process sales
+5. Generate reports for business analysis
+
+## Setup Notes
+- Ensure you have a placeholder image located at `assets/images/product-placeholder.png`. This image is used as a default if a product image is missing. A common dimension is 100x100 pixels.
+
+## License
+
+This project is licensed under the MIT License - see the LICENSE file for details.

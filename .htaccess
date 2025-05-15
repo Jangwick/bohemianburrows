@@ -1,0 +1,25 @@
+# Protect files and directories
+<FilesMatch "\.(htaccess|ini|log|sh|sql)$">
+    Order Allow,Deny
+    Deny from all
+</FilesMatch>
+
+# Disable directory browsing
+Options All -Indexes
+
+# Enable Apache mod_rewrite
+<IfModule mod_rewrite.c>
+    RewriteEngine On
+    
+    # Redirect all direct access to includes, ajax, and assets/js to index
+    RewriteRule ^includes/.*$ index.php [L,R=301]
+    
+    # Custom error pages
+    ErrorDocument 404 /bohemianburrows/404.html
+    ErrorDocument 403 /bohemianburrows/403.html
+</IfModule>
+
+# Prevent access to specific directories
+<IfModule mod_rewrite.c>
+    RewriteRule ^uploads/.*\.php$ - [F,L]
+</IfModule>
