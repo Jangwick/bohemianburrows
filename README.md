@@ -1,16 +1,30 @@
 # The Bohemian Burrows - Point of Sale System
 
-A comprehensive Point of Sale (POS) system for clothing retail businesses, featuring inventory management, admin and cashier panels, and multiple payment method support.
+A comprehensive Point of Sale (POS) system for clothing retail businesses, featuring inventory management, admin and cashier panels, multiple payment method support, and fully responsive design for all devices.
 
 ## Features
 
-- **User Authentication**: Separate login for admin and cashier users
+- **User Authentication**: Separate login for admin, cashier, and customer users
+- **Responsive Design**: Fully mobile-friendly interface that works on phones, tablets, and desktops
 - **Dashboard**: Overview of key metrics and quick navigation
 - **Inventory Management**: Track stock levels and manage products
 - **Point of Sale (POS)**: User-friendly interface for processing sales
 - **Multiple Payment Methods**: Support for cash, card, GCash, and PayMaya
+- **Online Ordering System**: Customers can place orders through the web interface
+- **Order Management**: Track order status from pending to delivered
+- **Real-time Updates**: Status changes reflect immediately across all interfaces
 - **Reporting**: Generate sales reports and analytics
 - **Receipt Printing**: Print physical or digital receipts
+
+## Responsive Design
+
+The system features a fully responsive design that adapts to various screen sizes:
+
+- **Mobile Phones**: Optimized interface for small screens with touch-friendly buttons
+- **Tablets**: Fluid layout that maximizes screen real estate for point-of-sale operations
+- **Desktop**: Full-featured interface with advanced management capabilities
+- **Adaptive Tables**: Data tables adjust columns based on available space
+- **Flexible Images**: Product images scale appropriately for different devices
 
 ## Installation
 
