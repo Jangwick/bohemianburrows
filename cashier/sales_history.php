@@ -234,7 +234,15 @@ $summary = $summary_stmt->get_result()->fetch_assoc();
                                                     <?php echo display_payment_method($sale['payment_method'], true); ?>
                                                 </td>
                                                 <td>
-                                                    <?php echo display_order_status($sale['payment_status'] ?? 'paid'); ?>
+                                                    <?php 
+                                                    // For POS sales (walk-ins), always display as completed
+                                                    $is_walk_in = ($sale['customer_name'] == 'Walk-in' || empty($sale['customer_name']));
+                                                    
+                                                    // If it's walk-in or the status is already set to "completed", show completed
+                                                    $status = $is_walk_in ? 'completed' : ($sale['payment_status'] ?? 'pending');
+                                                    
+                                                    echo display_order_status($status, $is_walk_in); 
+                                                    ?>
                                                 </td>
                                                 <td>₱ <?php echo number_format($sale['discount'], 2); ?></td>
                                                 <td>₱ <?php echo number_format($sale['total_amount'], 2); ?></td>

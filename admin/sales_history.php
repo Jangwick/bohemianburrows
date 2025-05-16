@@ -295,7 +295,17 @@ $summary = $summary_stmt->get_result()->fetch_assoc();
                                                     <?php echo display_payment_method($sale['payment_method'], true); ?>
                                                 </td>
                                                 <td>
-                                                    <?php echo display_order_status($sale['payment_status']); ?>
+                                                    <?php 
+                                                    // For walk-in customers (no user_id), always show as completed
+                                                    $status = $sale['payment_status'];
+                                                    
+                                                    // Walk-in customers are marked as completed automatically
+                                                    if (empty($sale['user_id']) && (empty($status) || $status == 'pending')) {
+                                                        $status = 'completed';
+                                                    }
+                                                    
+                                                    echo display_order_status($status ?? 'completed'); 
+                                                    ?>
                                                 </td>
                                                 <td>₱ <?php echo number_format($sale['discount'], 2); ?></td>
                                                 <td>₱ <?php echo number_format($sale['total_amount'], 2); ?></td>

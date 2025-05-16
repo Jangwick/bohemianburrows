@@ -286,5 +286,22 @@ $phone = $order['phone'] ?? null;
     </div>
 
     <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.6/dist/js/bootstrap.bundle.min.js"></script>
+    <script>
+    // Add auto-refresh to keep status current
+    document.addEventListener('DOMContentLoaded', function() {
+        // Check for status updates every 30 seconds
+        setInterval(function() {
+            fetch('check_order_status.php?id=<?php echo $order_id; ?>')
+                .then(response => response.json())
+                .then(data => {
+                    if (data.success && data.status !== '<?php echo $order['payment_status']; ?>') {
+                        // Status has changed, reload the page to show updates
+                        window.location.reload();
+                    }
+                })
+                .catch(error => console.error('Error checking status:', error));
+        }, 30000); // 30 seconds
+    });
+    </script>
 </body>
 </html>

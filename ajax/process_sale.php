@@ -52,6 +52,14 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
     $conn->begin_transaction();
 
     try {
+        // Check if this is a walk-in customer (processed through POS)
+        $is_walk_in = ($customer_name === 'Walk-in' || empty($customer_name));
+        
+        // Set appropriate status for the order
+        // Walk-in orders (POS transactions) are automatically marked as "completed"
+        // Online orders go through the approval workflow starting as "pending"
+        $status = $is_walk_in ? 'completed' : 'pending';
+
         // Insert into sales table with status "completed"
         $stmt_sale = $conn->prepare("INSERT INTO sales (invoice_number, user_id, customer_name, subtotal, discount, total_amount, payment_method, payment_status, notes, shipping_address, shipping_city, shipping_postal_code, email, phone) VALUES (?, ?, ?, ?, ?, ?, ?, ?, '', '', '', '', '', '')");
         if (!$stmt_sale) {

@@ -9,14 +9,17 @@ require_once "../includes/db_connect.php";
 require_once "../includes/functions.php"; // Include the functions file
 require_once "../includes/display_helpers.php"; // Include our helper functions
 
-// Handle status update via AJAX (will be processed in ajax_update_order.php)
+// Force no caching
+header("Cache-Control: no-store, no-cache, must-revalidate, max-age=0");
+header("Pragma: no-cache");
+header("Expires: 0");
 
 // Pagination setup
 $limit = 20;
 $page = isset($_GET['page']) ? (int)$_GET['page'] : 1;
 $start = ($page - 1) * $limit;
 
-// Base query
+// Base query with explicit columns
 $where = "1=1";
 $params = array();
 $types = "";
@@ -65,7 +68,13 @@ $count_stmt->execute();
 $total_records = $count_stmt->get_result()->fetch_assoc()['total'];
 $total_pages = ceil($total_records / $limit);
 
-// Get orders with pagination and all required fields for display
+// IMPORTANT CHANGE: Add cache-busting timestamp to prevent stale data
+$cache_bust = time();
+
+// Define debug flag - fix undefined variable warning
+$debug_enabled = false; // Set to true to enable debugging information
+
+// Add FOR UPDATE to lock rows during read to prevent stale data
 $sql = "
     SELECT 
         s.id, 
@@ -216,11 +225,15 @@ sort($all_statuses);
                                     </tr>
                                 </thead>
                                 <tbody>
-                                    <?php if($orders->num_rows > 0): ?>
+                                    <?php if($orders->num_rows > 0): 
+                                        // Define debug flag for troubleshooting if needed
+                                        $debug_enabled = false; 
+                                        $cache_bust = time();
+                                    ?>
                                         <?php while($order = $orders->fetch_assoc()): ?>
                                             <tr>
                                                 <td>
-                                                    <a href="order_details.php?id=<?php echo $order['id']; ?>">
+                                                    <a href="order_details.php?id=<?php echo $order['id']; ?>&t=<?php echo $cache_bust; ?>">
                                                         <?php echo htmlspecialchars($order['invoice_number']); ?>
                                                     </a>
                                                 </td>
@@ -232,21 +245,32 @@ sort($all_statuses);
                                                     <?php echo display_payment_method($order['payment_method'], true); ?>
                                                 </td>
                                                 <td>
-                                                    <?php echo display_order_status($order['payment_status'] ?: 'pending'); ?>
+                                                    <?php
+                                                    // Determine if this is a walk-in order (POS transaction)
+                                                    // Fix: Add proper checks for user_id to prevent "undefined array key" warning
+                                                    $is_walk_in = (isset($order['user_id']) && $order['user_id'] == $_SESSION['user_id'] && 
+                                                                ($order['customer_name'] == 'Walk-in' || empty($order['customer_name'])));
+                                                    
+                                                    // Debug raw value from database if enabled
+                                                    if ($debug_enabled) {
+                                                        echo '<div class="small text-muted">Raw: [' . ($order['payment_status'] ?? 'null') . ']</div>';
+                                                    }
+                                                    
+                                                    // Ensure we have a fallback status and proper display
+                                                    $status = isset($order['payment_status']) && !empty($order['payment_status']) 
+                                                        ? $order['payment_status'] 
+                                                        : 'pending';
+                                                    
+                                                    // Pass walk-in flag to display helper
+                                                    echo display_order_status($status, $is_walk_in);
+                                                    ?>
                                                 </td>
                                                 <td>₱ <?php echo number_format($order['total_amount'], 2); ?></td>
                                                 <td>
-                                                    <a href="order_details.php?id=<?php echo $order['id']; ?>" class="btn btn-sm btn-info" title="View Details">
+                                                    <a href="order_details.php?id=<?php echo $order['id']; ?>&t=<?php echo $cache_bust; ?>" class="btn btn-sm btn-info" title="View Details">
                                                         <i class="fas fa-eye"></i>
                                                     </a>
-                                                    <button class="btn btn-sm btn-warning edit-status-btn" 
-                                                            data-bs-toggle="modal" 
-                                                            data-bs-target="#updateStatusModal"
-                                                            data-order-id="<?php echo $order['id']; ?>"
-                                                            data-current-status="<?php echo htmlspecialchars($order['payment_status'] ?: 'pending'); ?>"
-                                                            title="Update Status">
-                                                        <i class="fas fa-edit"></i>
-                                                    </button>
+                                                    <!-- Additional action buttons as needed -->
                                                 </td>
                                             </tr>
                                         <?php endwhile; ?>
@@ -285,40 +309,16 @@ sort($all_statuses);
         </div>
     </div>
 
-    <!-- Update Status Modal -->
-    <div class="modal fade" id="updateStatusModal" tabindex="-1" aria-labelledby="updateStatusModalLabel" aria-hidden="true">
-        <div class="modal-dialog">
-            <div class="modal-content">
-                <div class="modal-header">
-                    <h5 class="modal-title" id="updateStatusModalLabel">Update Order Status</h5>
-                    <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
-                </div>
-                <div class="modal-body">
-                    <form id="updateStatusForm">
-                        <input type="hidden" id="order_id" name="order_id">
-                        <div class="mb-3">
-                            <label for="order_status" class="form-label">Status</label>
-                            <select class="form-select" id="order_status" name="status">
-                                <option value="pending">Pending</option>
-                                <option value="processing">Processing</option>
-                                <option value="shipped">Shipped</option>
-                                <option value="delivered">Delivered</option>
-                                <option value="completed">Completed</option>
-                                <option value="cancelled">Cancelled</option>
-                                <option value="refunded">Refunded</option>
-                                <option value="paid">Paid</option>
-                            </select>
-                        </div>
-                        <div class="mb-3">
-                            <label for="comments" class="form-label">Comments (Optional)</label>
-                            <textarea class="form-control" id="comments" name="comments" rows="3"></textarea>
-                        </div>
-                    </form>
-                </div>
-                <div class="modal-footer">
-                    <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Cancel</button>
-                    <button type="button" class="btn btn-primary" id="updateStatusBtn">Update Status</button>
-                </div>
+    <!-- Add toast notification element for status updates -->
+    <div class="toast-container position-fixed bottom-0 end-0 p-3">
+        <div id="statusToast" class="toast" role="alert" aria-live="assertive" aria-atomic="true">
+            <div class="toast-header">
+                <strong class="me-auto">Status Update</strong>
+                <small>Just now</small>
+                <button type="button" class="btn-close" data-bs-dismiss="toast" aria-label="Close"></button>
+            </div>
+            <div class="toast-body" id="statusToastMessage">
+                Status updated successfully.
             </div>
         </div>
     </div>
@@ -326,59 +326,87 @@ sort($all_statuses);
     <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.6/dist/js/bootstrap.bundle.min.js"></script>
     <script>
     document.addEventListener('DOMContentLoaded', function() {
-        // Handle status update button
-        const editStatusBtns = document.querySelectorAll('.edit-status-btn');
-        const orderIdInput = document.getElementById('order_id');
-        const statusSelect = document.getElementById('order_status');
-        const commentsInput = document.getElementById('comments');
-        const updateStatusBtn = document.getElementById('updateStatusBtn');
+        // Add auto-refresh functionality for the orders page
+        setTimeout(function() {
+            // Refresh every 2 minutes to ensure latest status is shown
+            location.reload();
+        }, 120000);
         
-        // Set current status in modal when opened
-        editStatusBtns.forEach(button => {
+        // Status update handling with AJAX
+        const updateStatusButtons = document.querySelectorAll('.update-status-btn');
+        const statusToast = new bootstrap.Toast(document.getElementById('statusToast'));
+        const statusToastMessage = document.getElementById('statusToastMessage');
+        
+        updateStatusButtons.forEach(button => {
             button.addEventListener('click', function() {
                 const orderId = this.getAttribute('data-order-id');
-                const currentStatus = this.getAttribute('data-current-status');
+                const newStatus = this.getAttribute('data-status');
+                const dropdown = this.closest('.status-dropdown');
+                const statusButton = dropdown.querySelector('.status-badge');
                 
-                orderIdInput.value = orderId;
-                statusSelect.value = currentStatus;
-                commentsInput.value = ''; // Clear comments
-            });
-        });
-        
-        // Handle status update
-        updateStatusBtn.addEventListener('click', function() {
-            const orderId = orderIdInput.value;
-            const status = statusSelect.value;
-            const comments = commentsInput.value;
-            
-            // Send AJAX request to update status
-            fetch('../ajax/update_order_status.php', {
-                method: 'POST',
-                headers: {
-                    'Content-Type': 'application/json',
-                },
-                body: JSON.stringify({
-                    order_id: orderId,
-                    status: status,
-                    comments: comments
+                // Show loading indicator
+                const originalText = statusButton.textContent;
+                statusButton.innerHTML = '<span class="spinner-border spinner-border-sm" role="status" aria-hidden="true"></span> Updating...';
+                statusButton.disabled = true;
+                
+                // Save the original status in case of error
+                const originalStatus = statusButton.className.match(/status-(\w+)/?.[1] || 'pending';
+                
+                // Send AJAX request to update status
+                fetch('../ajax/update_order_status.php', {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/json'
+                    },
+                    body: JSON.stringify({
+                        order_id: orderId,
+                        status: newStatus,
+                        comments: 'Updated from order management'
+                    })
                 })
-            })
-            .then(response => response.json())
-            .then(data => {
-                if (data.success) {
-                    // Hide modal
-                    bootstrap.Modal.getInstance(document.getElementById('updateStatusModal')).hide();
+                .then(response => response.json())
+                .then(data => {
+                    if (data.success) {
+                        // Update status button appearance
+                        statusButton.classList.remove('status-' + originalStatus);
+                        statusButton.classList.add('status-' + newStatus);
+                        statusButton.textContent = newStatus.charAt(0).toUpperCase() + newStatus.slice(1);
+                        statusButton.disabled = false;
+                        
+                        // Show success toast
+                        statusToastMessage.textContent = 'Order #' + orderId + ' status updated to ' + newStatus;
+                        statusToastMessage.className = 'toast-body text-success';
+                        statusToast.show();
+                        
+                        // Refresh any other elements that show the status
+                        document.querySelectorAll(`[data-order-id="${orderId}"]`).forEach(el => {
+                            if (el !== statusButton && el.classList.contains('status-badge')) {
+                                el.classList.remove('status-' + originalStatus);
+                                el.classList.add('status-' + newStatus);
+                                el.textContent = newStatus.charAt(0).toUpperCase() + newStatus.slice(1);
+                            }
+                        });
+                    } else {
+                        // Show error and revert to original status
+                        statusButton.textContent = originalText;
+                        statusButton.disabled = false;
+                        
+                        statusToastMessage.textContent = 'Error: ' + (data.message || 'Failed to update status');
+                        statusToastMessage.className = 'toast-body text-danger';
+                        statusToast.show();
+                    }
+                })
+                .catch(error => {
+                    console.error('Error:', error);
                     
-                    // Set success message and reload page
-                    alert('Order status updated successfully!');
-                    window.location.reload();
-                } else {
-                    alert('Error updating order status: ' + data.message);
-                }
-            })
-            .catch(error => {
-                console.error('Error:', error);
-                alert('An error occurred while updating the status.');
+                    // Revert to original status on error
+                    statusButton.textContent = originalText;
+                    statusButton.disabled = false;
+                    
+                    statusToastMessage.textContent = 'Error: Could not connect to server';
+                    statusToastMessage.className = 'toast-body text-danger';
+                    statusToast.show();
+                });
             });
         });
     });

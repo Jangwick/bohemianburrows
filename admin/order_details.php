@@ -5,30 +5,76 @@ if(!isset($_SESSION['user_id']) || $_SESSION['role'] != 'admin') {
     exit;
 }
 
-require_once "../includes/db_connect.php";
-require_once "../includes/functions.php"; // Include the functions file
-require_once "../includes/display_helpers.php"; // Include our helper functions
+// Force cache prevention
+header("Cache-Control: no-store, no-cache, must-revalidate, max-age=0");
+header("Cache-Control: post-check=0, pre-check=0", false);
+header("Pragma: no-cache");
 
-// Check if order ID is provided
+require_once "../includes/db_connect.php";
+require_once "../includes/functions.php";
+require_once "../includes/display_helpers.php";
+
+// Check if ID is provided
 if(!isset($_GET['id']) || !is_numeric($_GET['id'])) {
+    $_SESSION['error_message'] = "Invalid order ID.";
     header("Location: orders.php");
     exit;
 }
 
 $order_id = (int)$_GET['id'];
 
-// Get order details
-$stmt = $conn->prepare("
-    SELECT s.*, u.username, u.email
+// Process direct form submissions for status updates
+if($_SERVER["REQUEST_METHOD"] == "POST") {
+    if(isset($_POST['update_status']) && isset($_POST['new_status'])) {
+        $new_status = $_POST['new_status'];
+        $comments = isset($_POST['comments']) ? $_POST['comments'] : '';
+        
+        // Use direct query for maximum reliability
+        $update_sql = "UPDATE sales SET payment_status = ? WHERE id = ?";
+        $update_stmt = $conn->prepare($update_sql);
+        $update_stmt->bind_param("si", $new_status, $order_id);
+        
+        if($update_stmt->execute()) {
+            // Check if update was successful
+            if($update_stmt->affected_rows > 0) {
+                // Log in history if table exists
+                $history_check = $conn->query("SHOW TABLES LIKE 'order_status_history'");
+                if($history_check->num_rows > 0) {
+                    $history_stmt = $conn->prepare("
+                        INSERT INTO order_status_history (order_id, status, comments, created_by)
+                        VALUES (?, ?, ?, ?)
+                    ");
+                    $history_stmt->bind_param("issi", $order_id, $new_status, $comments, $_SESSION['user_id']);
+                    $history_stmt->execute();
+                }
+                
+                $_SESSION['success_message'] = "Order status successfully updated to " . ucfirst($new_status);
+            } else {
+                $_SESSION['info_message'] = "Status was already set to " . ucfirst($new_status);
+            }
+        } else {
+            $_SESSION['error_message'] = "Failed to update status: " . $conn->error;
+        }
+        
+        // Redirect with cache-busting parameter
+        header("Location: order_details.php?id=$order_id&t=" . time());
+        exit;
+    }
+}
+
+// Get order details - ALWAYS FETCH FRESH DATA
+$order_stmt = $conn->prepare("
+    SELECT s.*, u.username
     FROM sales s
     LEFT JOIN users u ON s.user_id = u.id
     WHERE s.id = ?
 ");
-$stmt->bind_param("i", $order_id);
-$stmt->execute();
-$result = $stmt->get_result();
+$order_stmt->bind_param("i", $order_id);
+$order_stmt->execute();
+$result = $order_stmt->get_result();
 
 if($result->num_rows == 0) {
+    $_SESSION['error_message'] = "Order not found.";
     header("Location: orders.php");
     exit;
 }
@@ -46,6 +92,35 @@ $items_stmt->bind_param("i", $order_id);
 $items_stmt->execute();
 $items = $items_stmt->get_result();
 
+// Add safety check to prevent undefined variable error
+if ($items === null) {
+    $items = []; // Initialize as an empty array if query failed
+    $_SESSION['error_message'] = "Failed to retrieve order items.";
+} else {
+    // Create an array of items for easier handling
+    $items_array = [];
+    while ($item = $items->fetch_assoc()) {
+        $items_array[] = $item;
+    }
+    // Reset result pointer for future use
+    $items->data_seek(0);
+}
+
+// Fetch fresh order data to ensure we have latest status
+$fresh_query = "SELECT s.*, u.username FROM sales s LEFT JOIN users u ON s.user_id = u.id WHERE s.id = $order_id";
+$result = $conn->query($fresh_query);
+
+if($result->num_rows == 0) {
+    header("Location: orders.php");
+    exit;
+}
+
+$order = $result->fetch_assoc();
+
+// Debug current status (leave this in to help troubleshoot)
+$current_status = $order['payment_status'] ?? 'unknown';
+error_log("Order #$order_id status: $current_status");
+
 // Get shipping details if available
 $shipping_details = null;
 
@@ -61,29 +136,28 @@ if ($tableCheck->num_rows > 0) {
     $tracking_stmt->bind_param("i", $order_id);
     $tracking_stmt->execute();
     $tracking_result = $tracking_stmt->get_result();
-
-    if($tracking_result->num_rows > 0) {
+    
+    // Assign the result to $shipping_details if we found a record
+    if ($tracking_result->num_rows > 0) {
         $shipping_details = $tracking_result->fetch_assoc();
     }
 }
 
-// Add payment method formatter function
-function formatPaymentMethod($method) {
-    switch(strtolower($method)) {
-        case 'cod':
-            return '<span class="badge bg-success">Cash on Delivery</span>';
-        case 'cash':
-            return '<span class="badge bg-success">Cash</span>';
-        case 'gcash':
-            return '<span class="badge bg-info">GCash</span>';
-        case 'paymaya':
-            return '<span class="badge bg-warning text-dark">PayMaya</span>';
-        case 'card':
-            return '<span class="badge bg-primary">Credit/Debit Card</span>';
-        default:
-            return '<span class="badge bg-secondary">' . ucfirst($method) . '</span>';
-    }
-}
+// Get order status history
+$history_stmt = $conn->prepare("
+    SELECT h.*, u.username
+    FROM order_status_history h
+    LEFT JOIN users u ON h.created_by = u.id
+    WHERE h.order_id = ?
+    ORDER BY h.created_at DESC
+");
+$history_stmt->bind_param("i", $order_id);
+$history_stmt->execute();
+$history = $history_stmt->get_result();
+
+// DEBUG: Print the current status to verify
+$current_status = $order['payment_status'] ?? 'unknown';
+// Uncomment for debugging: error_log("Order #$order_id current status: $current_status");
 ?>
 
 <!DOCTYPE html>
@@ -154,7 +228,7 @@ function formatPaymentMethod($method) {
                 <div class="d-flex justify-content-between flex-wrap flex-md-nowrap align-items-center pt-3 pb-2 mb-3 border-bottom">
                     <h1 class="h2">Order Details</h1>
                     <div class="btn-toolbar mb-2 mb-md-0">
-                        <a href="orders.php" class="btn btn-sm btn-secondary me-2">
+                        <a href="orders.php?t=<?php echo time(); ?>" class="btn btn-sm btn-secondary me-2">
                             <i class="fas fa-arrow-left"></i> Back to Orders
                         </a>
                         <button type="button" class="btn btn-sm btn-outline-secondary" onclick="window.print()">
@@ -165,6 +239,52 @@ function formatPaymentMethod($method) {
                                 <i class="fas fa-tag"></i> Print Shipping Label
                             </a>
                         <?php endif; ?>
+                    </div>
+                </div>
+
+                <!-- Order Header -->
+                <div class="order-header">
+                    <div class="row">
+                        <div class="col-md-6">
+                            <h3>Order #<?php echo htmlspecialchars($order['invoice_number']); ?></h3>
+                            <p class="mb-1">
+                                <strong>Date:</strong> <?php echo date('F j, Y, g:i a', strtotime($order['created_at'])); ?>
+                            </p>
+                            <p class="mb-1">
+                                <strong>Customer:</strong> <?php echo htmlspecialchars($order['customer_name'] ?: 'N/A'); ?>
+                            </p>
+                            <p class="mb-1">
+                                <strong>Cashier/Staff:</strong> <?php echo htmlspecialchars($order['username'] ?: 'Online Order'); ?>
+                            </p>
+                            <p class="mb-0">
+                                <strong>Payment Method:</strong> <?php echo display_payment_method($order['payment_method'], true); ?>
+                            </p>
+                        </div>
+                        <div class="col-md-6 text-md-end">
+                            <div class="mb-3">
+                                <strong>Status:</strong> 
+                                <span id="currentOrderStatus">
+                                    <?php echo display_order_status($order['payment_status'] ?: 'pending'); ?>
+                                </span>
+                            </div>
+
+                            <!-- Status Update Dropdown -->
+                            <div class="dropdown d-inline-block">
+                                <button class="btn btn-primary dropdown-toggle" type="button" id="updateStatusDropdown" 
+                                        data-bs-toggle="dropdown" aria-expanded="false">
+                                    Update Status
+                                </button>
+                                <ul class="dropdown-menu dropdown-menu-end" aria-labelledby="updateStatusDropdown">
+                                    <li><button class="dropdown-item detail-update-status" data-status="pending">Pending</button></li>
+                                    <li><button class="dropdown-item detail-update-status" data-status="processing">Processing</button></li>
+                                    <li><button class="dropdown-item detail-update-status" data-status="shipped">Shipped</button></li>
+                                    <li><button class="dropdown-item detail-update-status" data-status="delivered">Delivered</button></li>
+                                    <li><button class="dropdown-item detail-update-status" data-status="completed">Completed</button></li>
+                                    <li><hr class="dropdown-divider"></li>
+                                    <li><button class="dropdown-item detail-update-status text-danger" data-status="cancelled">Cancelled</button></li>
+                                </ul>
+                            </div>
+                        </div>
                     </div>
                 </div>
 
@@ -224,6 +344,65 @@ function formatPaymentMethod($method) {
                                     <?php endif; ?>
                                 </div>
                             </div>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- Order Items Section -->
+                <div class="card mb-4">
+                    <div class="card-header">
+                        <h5 class="mb-0">Order Items</h5>
+                    </div>
+                    <div class="card-body">
+                        <div class="table-responsive">
+                            <table class="table table-hover">
+                                <thead>
+                                    <tr>
+                                        <th>Product</th>
+                                        <th>Name</th>
+                                        <th>Price</th>
+                                        <th>Quantity</th>
+                                        <th>Subtotal</th>
+                                    </tr>
+                                </thead>
+                                <tbody>
+                                    <?php if($items && $items->num_rows > 0): ?>
+                                        <?php while($item = $items->fetch_assoc()): ?>
+                                            <tr>
+                                                <td>
+                                                    <img src="<?php echo !empty($item['image_path']) ? '../' . htmlspecialchars($item['image_path']) : '../assets/images/product-placeholder.png'; ?>" 
+                                                         alt="<?php echo htmlspecialchars($item['name']); ?>" class="item-image">
+                                                </td>
+                                                <td><?php echo htmlspecialchars($item['name']); ?></td>
+                                                <td>₱<?php echo number_format($item['price'], 2); ?></td>
+                                                <td><?php echo $item['quantity']; ?></td>
+                                                <td>₱<?php echo number_format($item['price'] * $item['quantity'], 2); ?></td>
+                                            </tr>
+                                        <?php endwhile; ?>
+                                    <?php else: ?>
+                                        <tr>
+                                            <td colspan="5" class="text-center">No items found for this order.</td>
+                                        </tr>
+                                    <?php endif; ?>
+                                </tbody>
+                                <tfoot>
+                                    <tr>
+                                        <td colspan="3"></td>
+                                        <td><strong>Subtotal:</strong></td>
+                                        <td>₱<?php echo number_format($order['total_amount'] + $order['discount'], 2); ?></td>
+                                    </tr>
+                                    <tr>
+                                        <td colspan="3"></td>
+                                        <td><strong>Discount:</strong></td>
+                                        <td>₱<?php echo number_format($order['discount'], 2); ?></td>
+                                    </tr>
+                                    <tr>
+                                        <td colspan="3"></td>
+                                        <td><strong>Total:</strong></td>
+                                        <td>₱<?php echo number_format($order['total_amount'], 2); ?></td>
+                                    </tr>
+                                </tfoot>
+                            </table>
                         </div>
                     </div>
                 </div>
@@ -512,6 +691,20 @@ function formatPaymentMethod($method) {
         </div>
     </div>
 
+    <!-- Add toast notification for status updates -->
+    <div class="toast-container position-fixed top-0 end-0 p-3">
+        <div id="statusUpdateToast" class="toast" role="alert" aria-live="assertive" aria-atomic="true">
+            <div class="toast-header">
+                <strong class="me-auto">Status Update</strong>
+                <small>Just now</small>
+                <button type="button" class="btn-close" data-bs-dismiss="toast" aria-label="Close"></button>
+            </div>
+            <div class="toast-body" id="statusUpdateMessage">
+                Status updated successfully.
+            </div>
+        </div>
+    </div>
+
     <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.6/dist/js/bootstrap.bundle.min.js"></script>
     <script>
         document.addEventListener('DOMContentLoaded', function() {
@@ -609,6 +802,101 @@ function formatPaymentMethod($method) {
                 .catch(error => {
                     console.error('Error:', error);
                     alert('An error occurred while updating the order.');
+                });
+            });
+            
+            // Status update from detail page
+            const detailUpdateButtons = document.querySelectorAll('.detail-update-status');
+            const currentOrderStatus = document.getElementById('currentOrderStatus');
+            const statusToast = document.getElementById('statusUpdateToast') ? 
+                new bootstrap.Toast(document.getElementById('statusUpdateToast')) : null;
+            const statusUpdateMessage = document.getElementById('statusUpdateMessage');
+            
+            detailUpdateButtons.forEach(button => {
+                button.addEventListener('click', function() {
+                    const newStatus = this.getAttribute('data-status');
+                    const comments = prompt("Add a comment for this status change (optional):");
+                    
+                    // Update via AJAX
+                    fetch('../ajax/update_order_status.php', {
+                        method: 'POST',
+                        headers: {
+                            'Content-Type': 'application/json'
+                        },
+                        body: JSON.stringify({
+                            order_id: <?php echo $order_id; ?>,
+                            status: newStatus,
+                            comments: comments || 'Status updated by admin'
+                        })
+                    })
+                    .then(response => response.json())
+                    .then(data => {
+                        if (data.success) {
+                            // Update displayed status
+                            if (currentOrderStatus) {
+                                currentOrderStatus.innerHTML = `<span class="status-badge status-${newStatus}">${newStatus.charAt(0).toUpperCase() + newStatus.slice(1)}</span>`;
+                            }
+                            
+                            // Add new entry to timeline without reloading
+                            const timeline = document.getElementById('statusTimeline');
+                            if (timeline) { // Check if the timeline element exists
+                                const now = new Date();
+                                const formattedDate = now.toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' }) + 
+                                                    ' ' + now.toLocaleTimeString('en-US', { hour: 'numeric', minute: '2-digit', hour12: true });
+                                
+                                const newTimelineItem = document.createElement('div');
+                                newTimelineItem.className = 'timeline-item';
+                                newTimelineItem.innerHTML = `
+                                    <div class="timeline-marker">
+                                        <i class="fas fa-circle fa-xs"></i>
+                                    </div>
+                                    <div class="timeline-content">
+                                        <div class="d-flex justify-content-between mb-2">
+                                            <span>
+                                                <strong>${newStatus.charAt(0).toUpperCase() + newStatus.slice(1)}</strong>
+                                                by <?php echo htmlspecialchars($_SESSION['username']); ?>
+                                            </span>
+                                            <span class="text-muted">${formattedDate}</span>
+                                        </div>
+                                        ${comments ? '<p class="mb-0 text-muted">' + comments + '</p>' : ''}
+                                    </div>
+                                `;
+                                
+                                // Insert at the beginning of the timeline if it has child elements
+                                if (timeline.firstChild) {
+                                    timeline.insertBefore(newTimelineItem, timeline.firstChild);
+                                } else {
+                                    // If timeline is empty, just append
+                                    timeline.appendChild(newTimelineItem);
+                                }
+                            }
+                            
+                            // Show success message
+                            if (statusToast && statusUpdateMessage) {
+                                statusUpdateMessage.textContent = 'Order status updated to ' + newStatus;
+                                statusUpdateMessage.className = 'toast-body text-success';
+                                statusToast.show();
+                            }
+                            
+                            // Optional: Reload page after a short delay to ensure all data is fresh
+                            setTimeout(() => {
+                                window.location.reload();
+                            }, 2000);
+                        } else {
+                            // Show error
+                            if (statusToast && statusUpdateMessage) {
+                                statusUpdateMessage.textContent = 'Error: ' + (data.message || 'Failed to update status');
+                                statusUpdateMessage.className = 'toast-body text-danger';
+                                statusToast.show();
+                            } else {
+                                alert('Error: ' + (data.message || 'Failed to update status'));
+                            }
+                        }
+                    })
+                    .catch(error => {
+                        console.error('Error:', error);
+                        alert('Error: Could not connect to server');
+                    });
                 });
             });
         });
