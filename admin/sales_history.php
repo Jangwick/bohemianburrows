@@ -142,21 +142,20 @@ $summary = $summary_stmt->get_result()->fetch_assoc();
         .status-badge {
             min-width: 90px;
             text-align: center;
-            color: #fff;
+            padding: 0.4em 0.6em;
             font-weight: 500;
-            padding: 0.3em 0.6em;
-            font-size: 0.8em;
             border-radius: .25rem;
             display: inline-block;
+            line-height: 1;
         }
-        .status-pending { background-color: #ffc107; color: #000; }
-        .status-paid { background-color: #28a745; color: #fff; }
-        .status-processing { background-color: #17a2b8; color: #fff; }
-        .status-shipped { background-color: #007bff; color: #fff; }
-        .status-delivered { background-color: #28a745; color: #fff; }
-        .status-completed { background-color: #28a745; color: #fff; }
-        .status-cancelled { background-color: #dc3545; color: #fff; }
-        .status-refunded { background-color: #6c757d; color: #fff; }
+        .status-pending { background-color: #ffc107; color: #212529; }
+        .status-paid { background-color: #28a745; color: white; }
+        .status-processing { background-color: #17a2b8; color: white; }
+        .status-shipped { background-color: #007bff; color: white; }
+        .status-delivered { background-color: #28a745; color: white; }
+        .status-completed { background-color: #28a745; color: white; }
+        .status-cancelled { background-color: #dc3545; color: white; }
+        .status-refunded { background-color: #6c757d; color: white; }
         .status-on-hold { background-color: #fd7e14; color: #fff; }
     </style>
 </head>

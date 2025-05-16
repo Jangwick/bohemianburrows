@@ -33,15 +33,30 @@ if($result->num_rows === 0) {
 
 $product = $result->fetch_assoc();
 
-// Check if product is in wishlist
-$wishlist_stmt = $conn->prepare("
-    SELECT id FROM wishlist 
-    WHERE user_id = ? AND product_id = ?
-");
-$wishlist_stmt->bind_param("ii", $_SESSION['user_id'], $product_id);
-$wishlist_stmt->execute();
-$wishlist_result = $wishlist_stmt->get_result();
-$in_wishlist = $wishlist_result->num_rows > 0;
+// Check if product is in the user's wishlist - modified with error handling
+$is_in_wishlist = false;
+if(isset($_SESSION['user_id'])) {
+    try {
+        $wishlist_check = $conn->prepare("
+            SELECT id 
+            FROM wishlist 
+            WHERE user_id = ? AND product_id = ?
+        ");
+        $wishlist_check->bind_param("ii", $_SESSION['user_id'], $product_id);
+        $wishlist_check->execute();
+        $wishlist_result = $wishlist_check->get_result();
+        $is_in_wishlist = $wishlist_result->num_rows > 0;
+    } catch (mysqli_sql_exception $e) {
+        // If the query fails due to missing table, just set is_in_wishlist to false (already set)
+        // Check if it's specifically a "table doesn't exist" error
+        if (strpos($e->getMessage(), "doesn't exist") !== false) {
+            // Redirect to database update utility
+            $_SESSION['wishlist_error'] = "The wishlist feature needs setup. Please run the database update first.";
+            header("Location: ../database_update.php");
+            exit;
+        }
+    }
+}
 
 // Get related products (same category, excluding current)
 $related_stmt = $conn->prepare("
@@ -54,6 +69,53 @@ $related_stmt = $conn->prepare("
 $related_stmt->bind_param("si", $product['category'], $product_id);
 $related_stmt->execute();
 $related_products = $related_stmt->get_result();
+
+// Handle wishlist actions - modified with error handling
+if(isset($_POST['action'])) {
+    // Check if the user is logged in
+    if(!isset($_SESSION['user_id'])) {
+        $_SESSION['error_message'] = "Please log in to add items to your wishlist.";
+        header("Location: login.php");
+        exit;
+    }
+    
+    try {
+        if($_POST['action'] == 'add_to_wishlist') {
+            // Check if already in wishlist
+            $check_stmt = $conn->prepare("SELECT id FROM wishlist WHERE user_id = ? AND product_id = ?");
+            $check_stmt->bind_param("ii", $_SESSION['user_id'], $product_id);
+            $check_stmt->execute();
+            $check_result = $check_stmt->get_result();
+            
+            if($check_result->num_rows == 0) {
+                // Not in wishlist, add it
+                $add_stmt = $conn->prepare("INSERT INTO wishlist (user_id, product_id) VALUES (?, ?)");
+                $add_stmt->bind_param("ii", $_SESSION['user_id'], $product_id);
+                $add_stmt->execute();
+                $is_in_wishlist = true;
+                $_SESSION['success_message'] = "Product added to your wishlist!";
+            } else {
+                $_SESSION['error_message'] = "This product is already in your wishlist.";
+            }
+            header("Location: product_details.php?id=$product_id");
+            exit;
+        } elseif($_POST['action'] == 'remove_from_wishlist') {
+            // Remove from wishlist
+            $remove_stmt = $conn->prepare("DELETE FROM wishlist WHERE user_id = ? AND product_id = ?");
+            $remove_stmt->bind_param("ii", $_SESSION['user_id'], $product_id);
+            $remove_stmt->execute();
+            $is_in_wishlist = false;
+            $_SESSION['success_message'] = "Product removed from your wishlist.";
+            header("Location: product_details.php?id=$product_id");
+            exit;
+        }
+    } catch (mysqli_sql_exception $e) {
+        // If there's an error, redirect to database update
+        $_SESSION['wishlist_error'] = "The wishlist feature needs setup. Please run the database update first.";
+        header("Location: ../database_update.php");
+        exit;
+    }
+}
 ?>
 
 <!DOCTYPE html>
@@ -186,7 +248,7 @@ $related_products = $related_stmt->get_result();
                                         <i class="fas fa-shopping-cart me-1"></i> Add to Cart
                                     </button>
                                     <button type="button" id="add-to-wishlist" class="btn btn-outline-danger btn-lg">
-                                        <i class="<?php echo $in_wishlist ? 'fas' : 'far'; ?> fa-heart me-1"></i> Wishlist
+                                        <i class="<?php echo $is_in_wishlist ? 'fas' : 'far'; ?> fa-heart me-1"></i> Wishlist
                                     </button>
                                 </div>
                             </form>

@@ -49,25 +49,6 @@ $stmt->bind_param("isii", $user_id, $user_full_name, $start, $limit);
 $stmt->execute();
 $orders = $stmt->get_result();
 
-// When displaying orders, format payment method display
-
-// Here's the replacement function you can add to display a user-friendly payment method
-function formatPaymentMethod($method) {
-    switch(strtolower($method)) {
-        case 'cod':
-            return '<span class="badge bg-success">Cash on Delivery</span>';
-        case 'gcash':
-            return '<span class="badge bg-info">GCash</span>';
-        case 'paymaya':
-            return '<span class="badge bg-warning text-dark">PayMaya</span>';
-        case 'card':
-            return '<span class="badge bg-primary">Credit/Debit Card</span>';
-        case 'cash':
-            return '<span class="badge bg-success">Cash</span>';
-        default:
-            return '<span class="badge bg-secondary">' . ucfirst($method) . '</span>';
-    }
-}
 ?>
 
 <!DOCTYPE html>
@@ -162,7 +143,13 @@ function formatPaymentMethod($method) {
                                                 <td><?php echo htmlspecialchars($order['invoice_number']); ?></td>
                                                 <td><?php echo date('F j, Y, g:i a', strtotime($order['created_at'])); ?></td>
                                                 <td><?php echo $order['item_count']; ?> item(s)</td>
-                                                <td><?php echo display_payment_method($order['payment_method'], true); ?></td>
+                                                <td>
+                                                    <?php 
+                                                    // FIXED: Always show cash icon for null/empty payment methods
+                                                    $payment_method = !empty($order['payment_method']) ? $order['payment_method'] : 'cash';
+                                                    echo display_payment_method($payment_method, true); 
+                                                    ?>
+                                                </td>
                                                 <td><?php echo display_order_status($order['payment_status']); ?></td>
                                                 <td>₱<?php echo number_format($order['total_amount'], 2); ?></td>
                                                 <td>

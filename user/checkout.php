@@ -101,7 +101,7 @@ if($_SERVER['REQUEST_METHOD'] == 'POST') {
                     shipping_postal, phone, email, payment_status, notes
                 ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)");
                 
-                $stmt->bind_param("sissddssssss", 
+                $stmt->bind_param("sissddsssssss", 
                     $invoice_number, $_SESSION['user_id'], $customer_name, $payment_method, 
                     $total, $discount, $shipping_address, $shipping_city, 
                     $shipping_postal, $phone, $email, $payment_status, $notes);

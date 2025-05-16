@@ -23,14 +23,16 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
 
     $invoice_number = $input['invoice'] ?? null;
     $items = $input['items'] ?? [];
-    // Ensure subtotal is correctly retrieved
     $subtotal = isset($input['subtotal']) ? (float)$input['subtotal'] : 0; 
     $discount = isset($input['discount']) ? (float)$input['discount'] : 0;
     $total_amount = isset($input['total']) ? (float)$input['total'] : 0;
     $payment_method = $input['payment_method'] ?? null;
     $customer_name = $input['customer_name'] ?? 'Walk-in';
     $user_id = $_SESSION['user_id'];
-    $payment_status = 'paid'; // For POS, typically paid immediately
+    
+    // IMPORTANT CHANGE: Set payment_status to 'completed' for POS transactions
+    // Since transactions through POS are completed immediately and don't need approval
+    $payment_status = 'completed'; 
 
     // Validate essential data
     if (empty($invoice_number) || empty($items) || !isset($input['subtotal']) || $total_amount < 0 || empty($payment_method)) {
@@ -50,8 +52,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
     $conn->begin_transaction();
 
     try {
-        // Insert into sales table
-        // Make sure the column order here matches your bind_param types and variables
+        // Insert into sales table with status "completed"
         $stmt_sale = $conn->prepare("INSERT INTO sales (invoice_number, user_id, customer_name, subtotal, discount, total_amount, payment_method, payment_status, notes, shipping_address, shipping_city, shipping_postal_code, email, phone) VALUES (?, ?, ?, ?, ?, ?, ?, ?, '', '', '', '', '', '')");
         if (!$stmt_sale) {
             throw new Exception("Prepare failed (sales): " . $conn->error);
@@ -65,6 +66,18 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
             throw new Exception("Execute failed (sales): " . $stmt_sale->error . " | SQLSTATE: " . $stmt_sale->sqlstate);
         }
         $sale_id = $conn->insert_id;
+
+        // If recording status history, update to show "completed"
+        $history_table_check = $conn->query("SHOW TABLES LIKE 'order_status_history'");
+        if ($history_table_check->num_rows > 0) {
+            $status_note = "Sale completed via POS";
+            $history_stmt = $conn->prepare("
+                INSERT INTO order_status_history (order_id, status, comments, created_by) 
+                VALUES (?, ?, ?, ?)
+            ");
+            $history_stmt->bind_param("issi", $sale_id, $payment_status, $status_note, $user_id);
+            $history_stmt->execute();
+        }
 
         // Insert into sale_items table and update inventory
         $stmt_item = $conn->prepare("INSERT INTO sale_items (sale_id, product_id, quantity, price, subtotal) VALUES (?, ?, ?, ?, ?)");
