@@ -1,0 +1,148 @@
+/**
+ * Shipping Label Styles
+ * Optimized for 4x6 inch shipping labels
+ */
+
+/* Print-specific styles */
+@media print {
+    @page {
+        size: 4in 6in; /* Standard shipping label size */
+        margin: 0;
+    }
+    
+    body {
+        margin: 0;
+        padding: 0;
+    }
+    
+    .print-buttons {
+        display: none !important;
+    }
+}
+
+/* Label container */
+.shipping-label {
+    width: 4in;
+    height: 6in;
+    border: 1px solid #000;
+    padding: 0.25in;
+    box-sizing: border-box;
+    position: relative;
+    background-color: white;
+    font-family: Arial, sans-serif;
+}
+
+/* Header section with company info and label title */
+.label-header {
+    display: flex;
+    justify-content: space-between;
+    border-bottom: 1px solid #000;
+    padding-bottom: 10px;
+    margin-bottom: 10px;
+}
+
+.company-info h2 {
+    margin: 0 0 5px 0;
+    font-size: 14pt;
+}
+
+.company-info p {
+    margin: 0;
+    font-size: 8pt;
+}
+
+.postage {
+    text-align: right;
+}
+
+.postage h3 {
+    margin: 0;
+    font-size: 12pt;
+}
+
+/* Shipping address section */
+.to-address {
+    margin: 15px 0;
+}
+
+.to-address h3 {
+    margin: 0 0 5px 0;
+    font-size: 10pt;
+    text-decoration: underline;
+}
+
+.recipient-details {
+    margin-left: 15px;
+}
+
+.recipient-details h4 {
+    margin: 0 0 5px 0;
+    font-size: 14pt;
+}
+
+.recipient-details p {
+    margin: 0 0 3px 0;
+    font-size: 11pt;
+}
+
+/* Barcode section */
+.barcode-section {
+    text-align: center;
+    margin: 15px 0;
+}
+
+.barcode {
+    margin-top: 10px;
+}
+
+/* Order information footer */
+.order-info {
+    position: absolute;
+    bottom: 0.25in;
+    left: 0.25in;
+    right: 0.25in;
+    font-size: 8pt;
+    border-top: 1px solid #000;
+    padding-top: 10px;
+}
+
+.order-info p {
+    margin: 0 0 3px 0;
+}
+
+/* Screen-only controls */
+@media screen {
+    body.shipping-label-page {
+        padding: 20px;
+        background-color: #f0f0f0;
+    }
+    
+    .shipping-label {
+        margin: 0 auto;
+        background-color: white;
+        box-shadow: 0 1px 5px rgba(0,0,0,0.2);
+    }
+    
+    .print-buttons {
+        display: block;
+        margin-top: 20px;
+        text-align: center;
+    }
+    
+    .print-button {
+        padding: 10px 20px;
+        background: #007bff;
+        color: white;
+        border: none;
+        cursor: pointer;
+        margin-right: 10px;
+    }
+    
+    .close-button {
+        padding: 10px 20px;
+        background: #6c757d;
+        color: white;
+        border: none;
+        cursor: pointer;
+    }
+}

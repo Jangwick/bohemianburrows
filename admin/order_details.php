@@ -348,6 +348,58 @@ $current_status = $order['payment_status'] ?? 'unknown';
                     </div>
                 </div>
 
+                <!-- Shipping Information Section -->
+                <?php if(in_array($order['payment_status'], ['processing', 'shipped', 'approved'])): ?>
+                <div class="card mb-4">
+                    <div class="card-header d-flex justify-content-between align-items-center">
+                        <h5 class="mb-0">Shipping Information</h5>
+                        <button type="button" class="btn btn-primary" onclick="printShippingLabel()">
+                            <i class="fas fa-print"></i> Print Shipping Label
+                        </button>
+                    </div>
+                    <div class="card-body">
+                        <?php 
+                        // Get shipping details from order or shipping info table if available
+                        $shipping_address = !empty($order['shipping_address']) ? $order['shipping_address'] : '';
+                        $shipping_city = !empty($order['shipping_city']) ? $order['shipping_city'] : '';
+                        $shipping_postal = !empty($order['shipping_postal']) ? $order['shipping_postal'] : '';
+                        $recipient_name = !empty($order['customer_name']) ? $order['customer_name'] : 'Customer';
+                        $recipient_phone = !empty($order['phone']) ? $order['phone'] : '';
+                        
+                        // Get tracking info if available
+                        $tracking_number = isset($shipping_details['tracking_number']) ? $shipping_details['tracking_number'] : '';
+                        ?>
+                        
+                        <div class="row mb-3">
+                            <div class="col-md-6">
+                                <h6>Recipient Information:</h6>
+                                <p class="mb-1"><strong>Name:</strong> <?php echo htmlspecialchars($recipient_name); ?></p>
+                                <p class="mb-1"><strong>Address:</strong> <?php echo htmlspecialchars($shipping_address); ?></p>
+                                <p class="mb-1"><strong>City:</strong> <?php echo htmlspecialchars($shipping_city); ?></p>
+                                <p class="mb-1"><strong>Postal Code:</strong> <?php echo htmlspecialchars($shipping_postal); ?></p>
+                                <p class="mb-0"><strong>Phone:</strong> <?php echo htmlspecialchars($recipient_phone); ?></p>
+                            </div>
+                            <div class="col-md-6">
+                                <h6>Shipping Details:</h6>
+                                <p class="mb-1"><strong>Order Number:</strong> <?php echo htmlspecialchars($order['invoice_number']); ?></p>
+                                <p class="mb-1"><strong>Date:</strong> <?php echo date('F j, Y', strtotime($order['created_at'])); ?></p>
+                                <?php if(!empty($tracking_number)): ?>
+                                <p class="mb-0"><strong>Tracking Number:</strong> <?php echo htmlspecialchars($tracking_number); ?></p>
+                                <?php else: ?>
+                                <p class="mb-0 text-muted">No tracking number assigned yet.</p>
+                                <?php endif; ?>
+                            </div>
+                        </div>
+                        
+                        <?php if(empty($shipping_address)): ?>
+                        <div class="alert alert-warning">
+                            <i class="fas fa-exclamation-triangle"></i> Shipping information is incomplete. Please update before printing the label.
+                        </div>
+                        <?php endif; ?>
+                    </div>
+                </div>
+                <?php endif; ?>
+
                 <!-- Order Items Section -->
                 <div class="card mb-4">
                     <div class="card-header">
@@ -705,7 +757,49 @@ $current_status = $order['payment_status'] ?? 'unknown';
         </div>
     </div>
 
+    <!-- Add the shipping label template (hidden by default) -->
+    <div id="shipping-label-template" style="display: none;">
+        <div class="shipping-label">
+            <div class="label-header">
+                <div class="company-info">
+                    <h2>The Bohemian Burrows</h2>
+                    <p>123 Fashion Street, Makati City</p>
+                    <p>Philippines, Tel: (02) 8123-4567</p>
+                </div>
+                <div class="postage">
+                    <h3>SHIPPING LABEL</h3>
+                    <p>Order: <?php echo htmlspecialchars($order['invoice_number']); ?></p>
+                    <p><?php echo date('m/d/Y', strtotime($order['created_at'])); ?></p>
+                </div>
+            </div>
+            <div class="to-address">
+                <h3>SHIP TO:</h3>
+                <div class="recipient-details">
+                    <h4><?php echo htmlspecialchars($recipient_name); ?></h4>
+                    <p><?php echo htmlspecialchars($shipping_address); ?></p>
+                    <p><?php echo htmlspecialchars($shipping_city); ?>, <?php echo htmlspecialchars($shipping_postal); ?></p>
+                    <p>Phone: <?php echo htmlspecialchars($recipient_phone); ?></p>
+                </div>
+            </div>
+            <div class="barcode-section">
+                <?php if(!empty($tracking_number)): ?>
+                <p>Tracking #: <?php echo htmlspecialchars($tracking_number); ?></p>
+                <?php endif; ?>
+                <div class="barcode">
+                    <!-- Barcode representing the order number -->
+                    <svg id="order-barcode"></svg>
+                </div>
+            </div>
+            <div class="order-info">
+                <p><strong>Order Date:</strong> <?php echo date('m/d/Y', strtotime($order['created_at'])); ?></p>
+                <p><strong>Items:</strong> <?php echo $items ? $items->num_rows : 0; ?></p>
+                <p><strong>Shipping Method:</strong> Standard Shipping</p>
+            </div>
+        </div>
+    </div>
+
     <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.6/dist/js/bootstrap.bundle.min.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/jsbarcode@3.11.5/dist/JsBarcode.all.min.js"></script>
     <script>
         document.addEventListener('DOMContentLoaded', function() {
             // Status update handling
@@ -899,6 +993,192 @@ $current_status = $order['payment_status'] ?? 'unknown';
                     });
                 });
             });
+        });
+        
+        // Function to print shipping label
+        function printShippingLabel() {
+            // Validate if shipping info is available
+            const shippingAddress = "<?php echo addslashes($shipping_address); ?>";
+            if (!shippingAddress) {
+                alert("Shipping address is incomplete. Please update the shipping information before printing.");
+                return;
+            }
+            
+            // Create a barcode for the order number
+            JsBarcode("#order-barcode", "<?php echo $order['invoice_number']; ?>", {
+                format: "CODE128",
+                lineColor: "#000",
+                width: 2,
+                height: 50,
+                displayValue: true
+            });
+            
+            // Open print dialog
+            const printWindow = window.open('', '_blank');
+            const labelTemplate = document.getElementById('shipping-label-template').innerHTML;
+            
+            printWindow.document.write(`
+                <!DOCTYPE html>
+                <html>
+                <head>
+                    <title>Shipping Label - <?php echo htmlspecialchars($order['invoice_number']); ?></title>
+                    <style>
+                        @media print {
+                            @page {
+                                size: 4in 6in; /* Standard shipping label size */
+                                margin: 0;
+                            }
+                            body {
+                                margin: 0;
+                                padding: 0;
+                            }
+                        }
+                        
+                        body {
+                            font-family: Arial, sans-serif;
+                        }
+                        
+                        .shipping-label {
+                            width: 4in;
+                            height: 6in;
+                            border: 1px solid #000;
+                            padding: 0.25in;
+                            box-sizing: border-box;
+                            position: relative;
+                        }
+                        
+                        .label-header {
+                            display: flex;
+                            justify-content: space-between;
+                            border-bottom: 1px solid #000;
+                            padding-bottom: 10px;
+                            margin-bottom: 10px;
+                        }
+                        
+                        .company-info h2 {
+                            margin: 0 0 5px 0;
+                            font-size: 14pt;
+                        }
+                        
+                        .company-info p {
+                            margin: 0;
+                            font-size: 8pt;
+                        }
+                        
+                        .postage {
+                            text-align: right;
+                        }
+                        
+                        .postage h3 {
+                            margin: 0;
+                            font-size: 12pt;
+                        }
+                        
+                        .to-address {
+                            margin: 15px 0;
+                        }
+                        
+                        .to-address h3 {
+                            margin: 0 0 5px 0;
+                            font-size: 10pt;
+                            text-decoration: underline;
+                        }
+                        
+                        .recipient-details {
+                            margin-left: 15px;
+                        }
+                        
+                        .recipient-details h4 {
+                            margin: 0 0 5px 0;
+                            font-size: 14pt;
+                        }
+                        
+                        .recipient-details p {
+                            margin: 0 0 3px 0;
+                            font-size: 11pt;
+                        }
+                        
+                        .barcode-section {
+                            text-align: center;
+                            margin: 15px 0;
+                        }
+                        
+                        .barcode {
+                            margin-top: 10px;
+                        }
+                        
+                        .order-info {
+                            position: absolute;
+                            bottom: 0.25in;
+                            left: 0.25in;
+                            right: 0.25in;
+                            font-size: 8pt;
+                            border-top: 1px solid #000;
+                            padding-top: 10px;
+                        }
+                        
+                        .order-info p {
+                            margin: 0 0 3px 0;
+                        }
+                        
+                        .print-buttons {
+                            margin-top: 20px;
+                            text-align: center;
+                            display: none; /* Hide in print view */
+                        }
+                        
+                        @media screen {
+                            body {
+                                padding: 20px;
+                                background-color: #f0f0f0;
+                            }
+                            
+                            .shipping-label {
+                                margin: 0 auto;
+                                background-color: white;
+                                box-shadow: 0 1px 5px rgba(0,0,0,0.2);
+                            }
+                            
+                            .print-buttons {
+                                display: block;
+                            }
+                        }
+                    </style>
+                </head>
+                <body>
+                    ${labelTemplate}
+                    <div class="print-buttons">
+                        <button onclick="window.print();" style="padding: 10px 20px; background: #007bff; color: white; border: none; cursor: pointer; margin-right: 10px;">Print Label</button>
+                        <button onclick="window.close();" style="padding: 10px 20px; background: #6c757d; color: white; border: none; cursor: pointer;">Close</button>
+                    </div>
+                    <script src="https://cdn.jsdelivr.net/npm/jsbarcode@3.11.5/dist/JsBarcode.all.min.js"></script>
+                    <script>
+                        // Generate barcode
+                        JsBarcode("#order-barcode", "<?php echo $order['invoice_number']; ?>", {
+                            format: "CODE128",
+                            lineColor: "#000",
+                            width: 2,
+                            height: 50,
+                            displayValue: true
+                        });
+                        
+                        // Auto print after load
+                        window.onload = function() {
+                            setTimeout(function() {
+                                window.print();
+                            }, 500);
+                        }
+                    </script>
+                </body>
+                </html>
+            `);
+            
+            printWindow.document.close();
+        }
+
+        // Initialize any elements once DOM is loaded
+        document.addEventListener('DOMContentLoaded', function() {
+            // Other initialization code can go here
         });
     </script>
 </body>

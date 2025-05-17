@@ -247,12 +247,35 @@ $summary = $summary_stmt->get_result()->fetch_assoc();
                                                 <td>₱ <?php echo number_format($sale['discount'], 2); ?></td>
                                                 <td>₱ <?php echo number_format($sale['total_amount'], 2); ?></td>
                                                 <td>
-                                                    <button class="btn btn-sm btn-info view-sale" data-bs-toggle="modal" data-bs-target="#viewSaleModal" data-id="<?php echo $sale['id']; ?>" data-invoice="<?php echo $sale['invoice_number']; ?>">
-                                                        <i class="fas fa-eye"></i>
-                                                    </button>
-                                                    <button class="btn btn-sm btn-secondary print-receipt" data-id="<?php echo $sale['id']; ?>" data-invoice="<?php echo $sale['invoice_number']; ?>">
-                                                        <i class="fas fa-print"></i>
-                                                    </button>
+                                                    <div class="dropdown">
+                                                        <button class="btn btn-sm btn-primary dropdown-toggle" type="button" id="actionDropdown<?php echo $sale['id']; ?>" data-bs-toggle="dropdown" aria-expanded="false">
+                                                            <i class="fas fa-ellipsis-v"></i> Actions
+                                                        </button>
+                                                        <ul class="dropdown-menu dropdown-menu-end" aria-labelledby="actionDropdown<?php echo $sale['id']; ?>">
+                                                            <li>
+                                                                <button class="dropdown-item view-sale" data-bs-toggle="modal" data-bs-target="#viewSaleModal" 
+                                                                       data-id="<?php echo $sale['id']; ?>" data-invoice="<?php echo $sale['invoice_number']; ?>">
+                                                                    <i class="fas fa-eye"></i> View Details
+                                                                </button>
+                                                            </li>
+                                                            <li>
+                                                                <button class="dropdown-item print-receipt" data-id="<?php echo $sale['id']; ?>" 
+                                                                       data-invoice="<?php echo $sale['invoice_number']; ?>">
+                                                                    <i class="fas fa-print"></i> Print Receipt
+                                                                </button>
+                                                            </li>
+                                                            <?php if($sale['payment_status'] != 'cancelled' && $sale['payment_status'] != 'refunded' && strtotime($sale['created_at']) > strtotime('-24 hours')): ?>
+                                                            <li><hr class="dropdown-divider"></li>
+                                                            <li>
+                                                                <button class="dropdown-item void-sale" data-id="<?php echo $sale['id']; ?>" 
+                                                                       data-invoice="<?php echo $sale['invoice_number']; ?>"
+                                                                       data-bs-toggle="modal" data-bs-target="#voidSaleModal">
+                                                                    <i class="fas fa-ban text-danger"></i> Void Transaction
+                                                                </button>
+                                                            </li>
+                                                            <?php endif; ?>
+                                                        </ul>
+                                                    </div>
                                                 </td>
                                             </tr>
                                         <?php endwhile; ?>
@@ -319,6 +342,37 @@ $summary = $summary_stmt->get_result()->fetch_assoc();
                 <div class="modal-footer">
                     <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Close</button>
                     <button type="button" class="btn btn-primary" id="print-modal-receipt">Print Receipt</button>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Add Void Sale Modal -->
+    <div class="modal fade" id="voidSaleModal" tabindex="-1" aria-labelledby="voidSaleModalLabel" aria-hidden="true">
+        <div class="modal-dialog">
+            <div class="modal-content">
+                <div class="modal-header">
+                    <h5 class="modal-title" id="voidSaleModalLabel">Void Transaction</h5>
+                    <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
+                </div>
+                <div class="modal-body">
+                    <p>Are you sure you want to void transaction <strong id="void-invoice-number"></strong>?</p>
+                    <p class="text-danger">This action cannot be undone and requires manager approval.</p>
+                    <form id="voidSaleForm">
+                        <input type="hidden" id="void-sale-id" name="sale_id">
+                        <div class="mb-3">
+                            <label for="void-reason" class="form-label">Reason for Voiding</label>
+                            <textarea class="form-control" id="void-reason" name="reason" rows="3" required></textarea>
+                        </div>
+                        <div class="mb-3">
+                            <label for="manager-passcode" class="form-label">Manager Passcode</label>
+                            <input type="password" class="form-control" id="manager-passcode" name="passcode" required>
+                        </div>
+                    </form>
+                </div>
+                <div class="modal-footer">
+                    <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Cancel</button>
+                    <button type="button" class="btn btn-danger" id="confirm-void-btn">Void Transaction</button>
                 </div>
             </div>
         </div>
@@ -612,6 +666,208 @@ $summary = $summary_stmt->get_result()->fetch_assoc();
         window.printTransactions = function() {
             window.print();
         };
+        
+        // Handle void sale functionality
+        const voidButtons = document.querySelectorAll('.void-sale');
+        const voidSaleForm = document.getElementById('voidSaleForm');
+        const confirmVoidBtn = document.getElementById('confirm-void-btn');
+        
+        voidButtons.forEach(button => {
+            button.addEventListener('click', function() {
+                const saleId = this.getAttribute('data-id');
+                const invoiceNumber = this.getAttribute('data-invoice');
+                
+                document.getElementById('void-invoice-number').textContent = invoiceNumber;
+                document.getElementById('void-sale-id').value = saleId;
+            });
+        });
+        
+        confirmVoidBtn.addEventListener('click', function() {
+            const saleId = document.getElementById('void-sale-id').value;
+            const reason = document.getElementById('void-reason').value;
+            const passcode = document.getElementById('manager-passcode').value;
+            
+            if (!reason) {
+                alert('Please provide a reason for voiding the transaction.');
+                return;
+            }
+            
+            if (!passcode) {
+                alert('Manager passcode is required.');
+                return;
+            }
+            
+            // Send request to void the transaction
+            fetch('../ajax/void_transaction.php', {
+                method: 'POST',
+                headers: {
+                    'Content-Type': 'application/json',
+                },
+                body: JSON.stringify({
+                    sale_id: saleId,
+                    reason: reason,
+                    passcode: passcode
+                })
+            })
+            .then(response => response.json())
+            .then(data => {
+                if (data.success) {
+                    // Close the modal
+                    bootstrap.Modal.getInstance(document.getElementById('voidSaleModal')).hide();
+                    
+                    // Show success message
+                    alert('Transaction successfully voided.');
+                    
+                    // Reload page to reflect changes
+                    window.location.reload();
+                } else {
+                    alert('Error: ' + data.message);
+                }
+            })
+            .catch(error => {
+                console.error('Error:', error);
+                alert('An error occurred while trying to void the transaction.');
+            });
+        });
+        
+        // Enhanced view sale functionality
+        const viewButtons = document.querySelectorAll('.view-sale');
+        viewButtons.forEach(button => {
+            button.addEventListener('click', function() {
+                const saleId = this.getAttribute('data-id');
+                
+                // Show loading indicator
+                saleDetailsContainer.innerHTML = `
+                    <div class="text-center">
+                        <div class="spinner-border text-primary" role="status">
+                            <span class="visually-hidden">Loading...</span>
+                        </div>
+                        <p>Loading sale details...</p>
+                    </div>
+                `;
+                
+                // Fetch sale details with improved error handling
+                fetch(`../ajax/get_sale_details.php?id=${saleId}`)
+                    .then(response => {
+                        if (!response.ok) {
+                            throw new Error('Network response was not ok');
+                        }
+                        return response.json();
+                    })
+                    .then(data => {
+                        if(data.success) {
+                            currentSaleData = data; // Store for printing later
+                            
+                            // Build receipt content
+                            let receiptHTML = `
+                                <div class="receipt-content">
+                                    <div class="text-center mb-3">
+                                        <h4>The Bohemian Burrows</h4>
+                                        <p class="mb-0">123 Fashion Street</p>
+                                        <p class="mb-0">Makati City, Philippines</p>
+                                        <p>Tel: (02) 8123-4567</p>
+                                    </div>
+                                    
+                                    <div class="row mb-3">
+                                        <div class="col-6">
+                                            <p class="mb-0"><strong>Invoice:</strong> ${data.sale.invoice_number}</p>
+                                            <p class="mb-0"><strong>Date:</strong> ${new Date(data.sale.created_at).toLocaleString()}</p>
+                                        </div>
+                                        <div class="col-6 text-end">
+                                            <p class="mb-0"><strong>Cashier:</strong> ${data.sale.cashier_name || '<?php echo $_SESSION['username']; ?>'}</p>
+                                            <p class="mb-0"><strong>Customer:</strong> ${data.sale.customer_name || 'Walk-in'}</p>
+                                        </div>
+                                    </div>
+                                    
+                                    <table class="table table-sm">
+                                        <thead>
+                                            <tr>
+                                                <th>Item</th>
+                                                <th class="text-center">Qty</th>
+                                                <th class="text-end">Price</th>
+                                                <th class="text-end">Subtotal</th>
+                                            </tr>
+                                        </thead>
+                                        <tbody>`;
+                                        
+                            data.items.forEach(item => {
+                                receiptHTML += `
+                                    <tr>
+                                        <td>${item.name}</td>
+                                        <td class="text-center">${item.quantity}</td>
+                                        <td class="text-end">₱${parseFloat(item.price).toFixed(2)}</td>
+                                        <td class="text-end">₱${parseFloat(item.subtotal).toFixed(2)}</td>
+                                    </tr>`;
+                            });
+                            
+                            receiptHTML += `
+                                        </tbody>
+                                        <tfoot>
+                                            <tr>
+                                                <td colspan="3" class="text-end"><strong>Subtotal:</strong></td>
+                                                <td class="text-end">₱${(parseFloat(data.sale.total_amount) + parseFloat(data.sale.discount)).toFixed(2)}</td>
+                                            </tr>
+                                            <tr>
+                                                <td colspan="3" class="text-end"><strong>Discount:</strong></td>
+                                                <td class="text-end">₱${parseFloat(data.sale.discount).toFixed(2)}</td>
+                                            </tr>
+                                            <tr>
+                                                <td colspan="3" class="text-end"><strong>Total:</strong></td>
+                                                <td class="text-end">₱${parseFloat(data.sale.total_amount).toFixed(2)}</td>
+                                            </tr>
+                                            <tr>
+                                                <td colspan="3" class="text-end"><strong>Payment Method:</strong></td>
+                                                <td class="text-end">${getPaymentMethodNameJS(data.sale.payment_method)}</td>
+                                            </tr>
+                                        </tfoot>
+                                    </table>
+                                    
+                                    <div class="text-center mt-4">
+                                        <p>Thank you for shopping at The Bohemian Burrows!</p>
+                                        <p class="small">Please keep this receipt for exchanges or returns within 7 days.</p>
+                                    </div>
+                                </div>`;
+                                
+                            // Add transaction status indicator
+                            if (data.sale.payment_status) {
+                                const statusClass = getStatusClass(data.sale.payment_status);
+                                receiptHTML = receiptHTML.replace('<div class="row mb-3">', 
+                                    `<div class="alert alert-${statusClass} mb-2">
+                                        Transaction Status: <strong>${data.sale.payment_status.toUpperCase()}</strong>
+                                    </div>
+                                    <div class="row mb-3">`);
+                            }
+                            
+                            saleDetailsContainer.innerHTML = receiptHTML;
+                        } else {
+                            saleDetailsContainer.innerHTML = `
+                                <div class="alert alert-danger">
+                                    <i class="fas fa-exclamation-circle"></i> ${data.message || 'An error occurred loading sale details.'}
+                                </div>
+                            `;
+                        }
+                    })
+                    .catch(error => {
+                        console.error('Error:', error);
+                        saleDetailsContainer.innerHTML = `
+                            <div class="alert alert-danger">
+                                <i class="fas fa-exclamation-circle"></i> Failed to load sale details. Please try again.
+                            </div>
+                        `;
+                    });
+            });
+        });
+        
+        // Helper function for determining status styling
+        function getStatusClass(status) {
+            switch(status.toLowerCase()) {
+                case 'completed': return 'success';
+                case 'cancelled': return 'danger';
+                case 'refunded': return 'warning';
+                case 'pending': return 'info';
+                default: return 'secondary';
+            }
+        }
     });
     </script>
 </body>

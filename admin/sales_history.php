@@ -357,7 +357,7 @@ $summary = $summary_stmt->get_result()->fetch_assoc();
         </div>
     </div>
 
-    <!-- View Sale Modal -->
+    <!-- Add a modal for viewing sale details -->
     <div class="modal fade" id="viewSaleModal" tabindex="-1" aria-labelledby="viewSaleModalLabel" aria-hidden="true">
         <div class="modal-dialog modal-lg">
             <div class="modal-content">
@@ -366,13 +366,19 @@ $summary = $summary_stmt->get_result()->fetch_assoc();
                     <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
                 </div>
                 <div class="modal-body">
-                    <div id="sale-details-content">
-                        <div class="text-center"><div class="spinner-border text-primary"></div><p>Loading...</p></div>
+                    <div id="sale-details">
+                        <!-- Sale details will be loaded here -->
+                        <div class="text-center">
+                            <div class="spinner-border text-primary" role="status">
+                                <span class="visually-hidden">Loading...</span>
+                            </div>
+                            <p>Loading sale details...</p>
+                        </div>
                     </div>
                 </div>
                 <div class="modal-footer">
                     <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Close</button>
-                    <button type="button" class="btn btn-primary" id="print-modal-receipt-btn">Print Receipt</button>
+                    <button type="button" class="btn btn-primary" id="print-modal-receipt">Print Receipt</button>
                 </div>
             </div>
         </div>
@@ -404,7 +410,7 @@ $summary = $summary_stmt->get_result()->fetch_assoc();
 
 
     document.addEventListener('DOMContentLoaded', function() {
-        const saleDetailsContainer = document.getElementById('sale-details-content');
+        const saleDetailsContainer = document.getElementById('sale-details');
         let currentSaleDataForModal = null;
 
         document.querySelectorAll('.view-sale').forEach(button => {
@@ -469,7 +475,7 @@ $summary = $summary_stmt->get_result()->fetch_assoc();
             });
         });
 
-        document.getElementById('print-modal-receipt-btn').addEventListener('click', function() {
+        document.getElementById('print-modal-receipt').addEventListener('click', function() {
             if (currentSaleDataForModal) {
                 printSaleReceipt(currentSaleDataForModal);
             }

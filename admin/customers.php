@@ -13,14 +13,27 @@ if(isset($_GET['delete']) && is_numeric($_GET['delete'])) {
     
     // Don't allow admin to delete themselves
     if($user_id != $_SESSION['user_id']) {
-        $stmt = $conn->prepare("DELETE FROM users WHERE id = ?");
-        $stmt->bind_param("i", $user_id);
-        $stmt->execute();
+        // First check if the user has any sales records
+        $check_sales_stmt = $conn->prepare("SELECT COUNT(*) as count FROM sales WHERE user_id = ?");
+        $check_sales_stmt->bind_param("i", $user_id);
+        $check_sales_stmt->execute();
+        $sales_result = $check_sales_stmt->get_result();
+        $sales_count = $sales_result->fetch_assoc()['count'];
         
-        if($stmt->affected_rows > 0) {
-            $success = "User deleted successfully.";
+        if($sales_count > 0) {
+            // User has sales, cannot delete
+            $error = "Cannot delete this user because they have $sales_count associated orders. Consider deactivating the account instead.";
         } else {
-            $error = "Failed to delete user.";
+            // Safe to delete the user
+            $stmt = $conn->prepare("DELETE FROM users WHERE id = ?");
+            $stmt->bind_param("i", $user_id);
+            $stmt->execute();
+            
+            if($stmt->affected_rows > 0) {
+                $success = "User deleted successfully.";
+            } else {
+                $error = "Failed to delete user.";
+            }
         }
     } else {
         $error = "You cannot delete your own account.";
@@ -194,12 +207,29 @@ while($row = $result->fetch_assoc()) {
                                                     <i class="fas fa-edit"></i>
                                                 </a>
                                                 <?php if($user['id'] != $_SESSION['user_id']): ?>
-                                                <a href="javascript:void(0);" class="btn btn-sm btn-danger delete-user" 
-                                                   data-id="<?php echo $user['id']; ?>" 
-                                                   data-name="<?php echo htmlspecialchars($user['full_name']); ?>"
-                                                   title="Delete User">
-                                                    <i class="fas fa-trash"></i>
-                                                </a>
+                                                <button class="btn btn-sm btn-danger" data-bs-toggle="modal" data-bs-target="#deleteCustomerModal<?php echo $user['id']; ?>">
+                                                    <i class="fas fa-trash"></i> Delete
+                                                </button>
+
+                                                <!-- Delete Confirmation Modal -->
+                                                <div class="modal fade" id="deleteCustomerModal<?php echo $user['id']; ?>" tabindex="-1" aria-hidden="true">
+                                                    <div class="modal-dialog">
+                                                        <div class="modal-content">
+                                                            <div class="modal-header">
+                                                                <h5 class="modal-title">Confirm Delete</h5>
+                                                                <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
+                                                            </div>
+                                                            <div class="modal-body">
+                                                                <p>Are you sure you want to delete user <strong><?php echo htmlspecialchars($user['full_name']); ?></strong>?</p>
+                                                                <p class="text-danger"><i class="fas fa-exclamation-triangle"></i> Note: Customers with purchase history cannot be deleted.</p>
+                                                            </div>
+                                                            <div class="modal-footer">
+                                                                <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Cancel</button>
+                                                                <a href="customers.php?delete=<?php echo $user['id']; ?>" class="btn btn-danger">Delete</a>
+                                                            </div>
+                                                        </div>
+                                                    </div>
+                                                </div>
                                                 <?php endif; ?>
                                             </td>
                                         </tr>
@@ -218,26 +248,6 @@ while($row = $result->fetch_assoc()) {
         </div>
     </div>
 
-    <!-- Delete User Confirmation Modal -->
-    <div class="modal fade" id="deleteModal" tabindex="-1" aria-hidden="true">
-        <div class="modal-dialog">
-            <div class="modal-content">
-                <div class="modal-header">
-                    <h5 class="modal-title">Confirm Delete</h5>
-                    <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
-                </div>
-                <div class="modal-body">
-                    <p>Are you sure you want to delete user <strong id="delete-user-name"></strong>?</p>
-                    <p class="text-danger">This action cannot be undone.</p>
-                </div>
-                <div class="modal-footer">
-                    <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Cancel</button>
-                    <a href="#" id="confirm-delete" class="btn btn-danger">Delete</a>
-                </div>
-            </div>
-        </div>
-    </div>
-
     <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.6/dist/js/bootstrap.bundle.min.js"></script>
     <script>
         // Role select change
@@ -246,18 +256,9 @@ while($row = $result->fetch_assoc()) {
                 this.closest('form').submit();
             });
         });
-
-        // Delete user confirmation
-        document.querySelectorAll('.delete-user').forEach(button => {
-            button.addEventListener('click', function() {
-                const userId = this.getAttribute('data-id');
-                const userName = this.getAttribute('data-name');
-                
-                document.getElementById('delete-user-name').textContent = userName;
-                document.getElementById('confirm-delete').href = 'customers.php?delete=' + userId;
-                
-                const deleteModal = new bootstrap.Modal(document.getElementById('deleteModal'));
-                deleteModal.show();
+    </script>
+</body>
+</html>                deleteModal.show();
             });
         });
     </script>
