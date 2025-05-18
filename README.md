@@ -46,7 +46,7 @@ git clone https://github.com/yourusername/bohemian-burrows.git
 ## Accessing the System
 
 - Main application: http://localhost/bohemianburrows
-- Database setup: http://localhost/bohemianburrows/includes/db_setup.php
+- Database setup:   
 - Test connection: http://localhost/bohemianburrows/test_connection.php (if you created this file)
 
 ## Default Login Credentials

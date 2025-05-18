@@ -282,6 +282,32 @@ $result = $stmt->get_result();
             });
         });
         
+        // Form validation for add user
+        document.getElementById('addUserForm').addEventListener('submit', function(e) {
+            const username = document.getElementById('username').value.trim();
+            const fullName = document.getElementById('full_name').value.trim();
+            const password = document.getElementById('password').value.trim();
+            
+            if (!username || !fullName) {
+                e.preventDefault();
+                alert('Username and Full Name are required fields.');
+                return;
+            }
+            
+            if (!password) {
+                e.preventDefault();
+                alert('Password is required.');
+                return;
+            }
+            
+            // Basic password strength check
+            if (password.length < 6) {
+                e.preventDefault();
+                alert('Password must be at least 6 characters long.');
+                return;
+            }
+        });
+        
         // Form validation for edit user
         document.getElementById('editUserForm').addEventListener('submit', function(e) {
             const username = document.getElementById('edit_username').value.trim();
